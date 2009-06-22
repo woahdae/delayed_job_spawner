@@ -1,0 +1,13 @@
+#!/usr/bin/env ruby
+
+rails_root = File.expand_path(File.dirname(__FILE__) + "/../")
+
+require "#{rails_root}/vendor/plugins/delayed_job_spawner/lib/delayed_job_spawner"
+
+DelayedJobSpawner.spawn!(
+  :log_file => "#{rails_root}/log/delayed_job_spawner.log",
+  :pid_file => "#{rails_root}/log/delayed_job_spawner.log",
+  :working_dir => rails_root,
+  :sync_log => true,
+  :singleton => true
+)

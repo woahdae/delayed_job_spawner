@@ -1,0 +1,85 @@
+== delayed_job_spawner
+
+Delayed Job Spawner preloads Rails and uses forking to create multiple copy-on-write friendly instances of Delayed::Worker workers, which makes the workers a bit easier to work with en-masse and saves a ton of memory. As an added bonus, the Delayed::Worker Spawner also monitors the workers and re-forks them if they die.
+
+One goal of Delayed Job Spawner is to maintain the simplest-thing-that-works approach that makes Delayed::Job such a joy to work with. Thus, DelayedJobSpawner is a <100 line class that uses the simple, 70-or-so line DaemonSpawn gem to provide the DelayedJobSpawner start/stop/restart/status functionality, and the Spawn plugin to reliably fork Rails (which mostly deals with creating new database connections after the fork). DaemonSpawn, Spawn, and Delayed::Job are all included, with very small modifications in DaemonSpawn and Delayed::Job to make them play nice. However, if you already use any of these, it'll use your versions instead (to maintain any customizations); thus, you'll want to at least modify Delayed::Job (see Installation below).
+
+== Usage
+
+once installed, just <code>script/job_spawner start/stop/restart/status</code>. This would start 2 workers (the default).
+
+You can pass in the number of workers you want to run, ex. <code>script/job_spawner start 6</code> would start 6 instances. If you want to kick it up a notch at some point, you could do <code>script/job_spawner restart 10</code>, which would stop the 6 and start 10 (this happens pretty quickly thanks to the speediness of forking).
+
+Note that Delayed::Job lets jobs finish and releases locks when stopping, and DelayedJobSpawner respects this and waits for all workers to finish before exiting, so your jobs will be safe if you decide to manipulate the number of runners.
+
+===== Callbacks in job_spawner
+
+There are 2 callbacks in job_spawner, DelayedJobSpawner.after_load_environment and DelayedJobSpawner.before_start_worker. The former is called once after preloading rails, and the latter is called inside the worker spawns before Delayed::Worker.new.start.
+
+Example usage:
+
+<pre>
+#!/usr/bin/env ruby
+
+rails_root = File.expand_path(File.dirname(__FILE__) + "/../")
+
+require "#{rails_root}/vendor/plugins/delayed_job_spawner/lib/delayed_job_spawner"
+
+DelayedJobSpawner.after_load_environment do
+  # ex. you can't unmarshal YAML for lazy-loaded classes that haven't been
+  # lazy-loaded yet, which can be a problem when using DJ's send_later.
+  # Thus, so sometimes you need to do an explicit require
+  require 'thing_needing_explicit_require'
+end
+
+DelayedJobSpawner.before_start_worker do
+  # a) need to re-establish model-specific connections, as Spawn will break all of these
+  # b) need to use eval because right now the only classes loaded are DaemonSpawn and DelayedJobSpawner
+  eval "Delayed::Job.establish_connection(SEPARATE_JOBS_DATABASE_CONFIG)"
+end
+
+DelayedJobSpawner.spawn!(
+  :log_file => "#{rails_root}/log/delayed_job_spawner.log",
+  :pid_file => "#{rails_root}/tmp/pids/delayed_job_spawner.pid",
+  :working_dir => rails_root,
+  :sync_log => true,
+  :singleton => true
+)
+</pre>
+
+== Installation
+
+<code>script/plugin install git://github.com/woahdae/delayed_job_spawner.git
+
+to enable Ruby Enterprise Edition for script/job_spawner, you need to do one of:
+* change the schebang line in script/job_spawner to point to Ruby EE, so something like #!/opt/ruby-enterprise-1.8.6-20090421/bin/ruby . If it gets annoying moving between development and production and needing to change the schebang line, do one of the other options.
+* Do something like:
+  <pre>
+  ln -fs /opt/ruby-enterprise-1.8.6-20090421/bin/ruby /usr/local/bin/ruby
+  ln -fs /opt/ruby-enterprise-1.8.6-20090421/bin/gem /usr/local/bin/gem
+  ln -fs /opt/ruby-enterprise-1.8.6-20090421/bin/ri /usr/local/bin/ri
+  ln -fs /opt/ruby-enterprise-1.8.6-20090421/bin/rdoc /usr/local/bin/rdoc
+  ln -fs /opt/ruby-enterprise-1.8.6-20090421/bin/irb /usr/local/bin/irb
+  </pre>
+* You could also change your $PATH to include /opt/ruby-enterprise-1.8.6-20090421/bin/ before /usr/local/bin/ruby, but it can be difficult to get it to work the same between all users, ssh exec'ing, etc.
+
+===== Delayed::Job Modifications
+
+As mentioned above, it comes with its own versions of Spawn, DaemonSpawn, and Delayed::Job. Spawn is unmodified, DaemonSpawn has been made more LSB compliant, and Delayed::Job had to have 1 line added for forking.
+
+Specifically, Delayed::Job names its job runners based on PID at class load, which would make all workers try to acquire locks using the Delayed::Worker Spawner PID. In the version included, each worker redefines Delayed::Job.worker_name on initialization. If you have customized your version of Delayed::Job, you'll want to make this change too. 
+
+Also, there's a purely aesthetic change that renames the process when it's doing work to include the to_s of the current job - this lets you kinda see what your workers are up to in <code>ps</code>. Handy, but very optional.
+
+See the changelog between this version and the upstream: http://github.com/woahdae/delayed_job/commit/7df707a70653d85631bdfceadebb3daa8a224202
+
+== Known Issues
+
+* Sometimes it fails to rename a worker's process name when doing the initial fork. Thus, a <code>ps</code> will show more than one spawner, but according to the memory footprints only one is the full rails size, and all others will be picking up jobs. So, no need for concern. It's just a problem with renaming after the fork.
+* Enabling Ruby EE is a bit awkward. Oh well.
+
+== Todo
+
+* Worker memory monitoring. Should be really simple, but haven't had problems with memory size yet.
+* Ultimately it would be super-cool to have it auto-scale the number of workers to meet demand, just like Passenger. Haven't come up with a good algorithm/implementation for determining real-time load and adjusting to a configured number of max workers.
+
