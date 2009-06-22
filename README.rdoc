@@ -60,6 +60,8 @@ To enable Ruby Enterprise Edition for script/job_spawner, you need to do one of:
 * You could also change your $PATH to include /opt/ruby-enterprise-1.8.6-20090421/bin/ before /usr/local/bin/ruby, but it can be difficult to get it to work the same between all users, ssh exec'ing, etc.
 
 
+
+
 ==== Delayed::Job Modifications
 
 As mentioned above, it comes with its own versions of Spawn, DaemonSpawn, and Delayed::Job. Spawn is unmodified, DaemonSpawn has been made more LSB compliant, and Delayed::Job had to have 1 line added for forking.
