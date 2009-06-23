@@ -69,11 +69,6 @@ Also, there's a purely aesthetic change that renames the process when it's doing
 
 See the changelog between this version and the upstream: http://github.com/woahdae/delayed_job/commit/7df707a70653d85631bdfceadebb3daa8a224202
 
-== Known Issues
-
-* Sometimes it fails to rename a worker's process name when doing the initial fork. Thus, a <code>ps</code> will show more than one spawner, but according to the memory footprints only one is the full rails size, and all others will be picking up jobs. So, no need for concern. It's just a problem with renaming after the fork.
-* Enabling Ruby EE is a bit awkward. Oh well.
-
 == Todo
 
 * Worker memory monitoring. Should be really simple, but haven't had problems with memory size yet.

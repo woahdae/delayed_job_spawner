@@ -36,6 +36,7 @@ class DelayedJobSpawner < DaemonSpawn::Base
         $0 = "Delayed::Worker"
         worker = Delayed::Worker.new.start
       end
+      sleep 0.25 # otherwise doesn't do multiple forks well
     end
   end
   
