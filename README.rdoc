@@ -24,24 +24,24 @@ Example usage:
 
   require "#{rails_root}/vendor/plugins/delayed_job_spawner/lib/delayed_job_spawner"
 
-  DelayedJobSpawner.after_load_environment do
+  DelayedJobSpawner.prefork do
     # ex. you can't unmarshal YAML for lazy-loaded classes that haven't been
     # lazy-loaded yet, which can be a problem when using DJ's send_later.
     # Thus, so sometimes you need to do an explicit require
-    require 'thing_needing_explicit_require'
+    require 'ebay_interface'
   end
 
-  DelayedJobSpawner.before_start_worker do
+  DelayedJobSpawner.each_spawn do
     # a) need to re-establish model-specific connections, as Spawn will break all of these
     # b) need to use eval because right now the only classes loaded are DaemonSpawn and DelayedJobSpawner
-    eval "Delayed::Job.establish_connection(SEPARATE_JOBS_DATABASE_CONFIG)"
+    eval "Delayed::Job.establish_connection(ApplicationController.crystal_db.config)"
   end
 
   DelayedJobSpawner.spawn!(
     :log_file => "#{rails_root}/log/delayed_job_spawner.log",
     :pid_file => "#{rails_root}/tmp/pids/delayed_job_spawner.pid",
-    :working_dir => rails_root,
     :sync_log => true,
+    :working_dir => rails_root,
     :singleton => true
   )
 

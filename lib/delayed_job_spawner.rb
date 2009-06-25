@@ -26,13 +26,13 @@ class DelayedJobSpawner < DaemonSpawn::Base
       require File.dirname(__FILE__) + "/../vendor/spawn/lib/patches"
     end
     self.class.send(:include, Spawn)
-    DelayedJobSpawner.after_load_environment
+    DelayedJobSpawner.prefork
   end
     
   def spawn_pool_of(num)
     (0...num).each do
       self.spawns << spawn do
-        DelayedJobSpawner.before_start_worker
+        DelayedJobSpawner.each_spawn
         $0 = "Delayed::Worker"
         worker = Delayed::Worker.new.start
       end
@@ -83,19 +83,19 @@ class DelayedJobSpawner < DaemonSpawn::Base
   
   #### Class Callbacks ####
   
-  def self.before_start_worker(&block)
+  def self.each_spawn(&block)
     if block
-      @before_start_worker = block
-    elsif @before_start_worker
-      @before_start_worker.call
+      @each_spawn = block
+    elsif @each_spawn
+      @each_spawn.call
     end
   end
 
-  def self.after_load_environment(&block)
+  def self.prefork(&block)
     if block
-      @after_load_environment = block
-    elsif @after_load_environment
-      @after_load_environment.call
+      @prefork = block
+    elsif @prefork
+      @prefork.call
     end
   end
 end
